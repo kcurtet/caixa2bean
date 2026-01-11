@@ -10,13 +10,13 @@ describe('BeancountConverter', () => {
     transactionDate: '31/12/2025',
     valueDate: '31/12/2025',
     creditAmount: null,
-    debitAmount: 7.7,
-    balance: 76.84,
+    debitAmount: 15.5,
+    balance: 84.5,
     conceptoComun: '12',
     conceptoPropio: '040',
     referencia1: '000000000000',
-    referencia2: '4800259969209119',
-    conceptoComplementario1: "ES SHELL L'EMPORD",
+    referencia2: '1234567890123456',
+    conceptoComplementario1: 'GAS STATION EXAMPLE',
     conceptoComplementario2: '',
     conceptoComplementario3: '',
     conceptoComplementario4: '',
@@ -46,7 +46,7 @@ describe('BeancountConverter', () => {
     const beancountTxn = await BeancountConverter.convertTransaction(mockTransaction);
     expect(beancountTxn.postings).toHaveLength(2);
     expect(beancountTxn.postings[0].account).toBe('Assets:Bank:Caixa:Checking');
-    expect(beancountTxn.postings[0].amount).toBe(-7.7);
+    expect(beancountTxn.postings[0].amount).toBe(-15.5);
     expect(beancountTxn.postings[1].account).toBe('Expenses:Transportation:Fuel');
   });
 
@@ -69,8 +69,8 @@ describe('BeancountConverter', () => {
 
   it('should include transaction in output', async () => {
     const beancount = await BeancountConverter.convert(mockData);
-    expect(beancount).toContain('2025-12-31 * "ES SHELL L\'EMPORD - COMPRA CON TARJETA"');
-    expect(beancount).toContain('Assets:Bank:Caixa:Checking         -7.70 EUR');
+    expect(beancount).toContain('2025-12-31 * "GAS STATION EXAMPLE - COMPRA CON TARJETA"');
+    expect(beancount).toContain('Assets:Bank:Caixa:Checking         -15.50 EUR');
   });
 
   it('should normalize whitespace in transaction descriptions', async () => {
@@ -80,6 +80,6 @@ describe('BeancountConverter', () => {
       conceptoComplementario9: 'COMPRA CON TARJETA', // Already normalized
     };
     const beancountTxn = await BeancountConverter.convertTransaction(txnWithNormalizedSpaces);
-    expect(beancountTxn.narration).toBe("ES SHELL L'EMPORD - COMPRA CON TARJETA");
+    expect(beancountTxn.narration).toBe('GAS STATION EXAMPLE - COMPRA CON TARJETA');
   });
 });
