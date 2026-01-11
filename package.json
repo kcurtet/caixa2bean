@@ -1,8 +1,19 @@
 {
   "name": "caixa2bean",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "1.0.1",
+  "description": "A CLI tool to convert Portuguese Caixa bank statements to Beancount format",
+  "main": "dist/cli.js",
+  "bin": {
+    "caixa2bean": "dist/cli.js"
+  },
+  "files": ["dist/"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kcurtet/caixa2bean.git"
+  },
+  "keywords": ["beancount", "finance", "converter", "caixa", "banking", "portuguese", "accounting"],
+  "author": "",
+  "license": "GPL-3.0",
   "scripts": {
     "build": "tsc",
     "test": "vitest",
@@ -24,18 +35,17 @@
     "@typescript-eslint/eslint-plugin": "^8.52.0",
     "@typescript-eslint/parser": "^8.52.0",
     "@vitest/coverage-v8": "^4.0.16",
-    "commander": "^14.0.2",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "husky": "^9.1.7",
-    "iconv-lite": "^0.7.2",
     "lint-staged": "^16.2.7",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   },
   "dependencies": {
+    "commander": "^14.0.2",
     "xlsx": "^0.18.5"
   },
   "lint-staged": {
