@@ -41,10 +41,8 @@ describe('Error Handling and Validation', () => {
       }).toThrow();
     });
 
-    it('should throw ValidationError for empty transactions', () => {
-      // This would require mocking, but for now test that parser doesn't crash
+    it('should throw ParsingError for non-existent files', () => {
       expect(() => {
-        // Test with non-existent file (since we removed sensitive data)
         ExcelParser.parseFile('non-existent-file.xls');
       }).toThrow('Failed to parse Excel file');
     });
