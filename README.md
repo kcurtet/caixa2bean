@@ -43,6 +43,14 @@ The tool automatically categorizes transactions based on keywords:
 - **Transfers**: Bizum, internal transfers
 - **Unknown**: Everything else
 
+## Testing
+
+The project includes unit tests with mock data. For integration testing with real Excel files:
+
+1. Use the `sample-statement.csv` file as a reference for the expected Excel format
+2. Convert CSV to Excel format if needed for testing
+3. The tests use mock data to avoid requiring actual bank statements
+
 ## Development
 
 ```bash
