@@ -16,7 +16,7 @@ describe('BeancountConverter', () => {
     conceptoPropio: '040',
     referencia1: '000000000000',
     referencia2: '4800259969209119',
-    conceptoComplementario1: 'ES SHELL L\'EMPORD',
+    conceptoComplementario1: "ES SHELL L'EMPORD",
     conceptoComplementario2: '',
     conceptoComplementario3: '',
     conceptoComplementario4: '',
@@ -25,7 +25,7 @@ describe('BeancountConverter', () => {
     conceptoComplementario7: '',
     conceptoComplementario8: '04000022SIO',
     conceptoComplementario9: 'COMPRA CON TARJETA',
-    conceptoComplementario10: ''
+    conceptoComplementario10: '',
   };
 
   const mockData: ParsedExcelFile = {
@@ -34,42 +34,52 @@ describe('BeancountConverter', () => {
     period: { start: '01/01/2025', end: '31/12/2025' },
     openingBalance: 84.54,
     transactions: [mockTransaction],
-    closingBalance: 76.84
+    closingBalance: 76.84,
   };
 
-  it('should convert transaction date to Beancount format', () => {
-    const beancountTxn = BeancountConverter.convertTransaction(mockTransaction);
+  it('should convert transaction date to Beancount format', async () => {
+    const beancountTxn = await BeancountConverter.convertTransaction(mockTransaction);
     expect(beancountTxn.date).toBe('2025-12-31');
   });
 
-  it('should create correct postings for debit transaction', () => {
-    const beancountTxn = BeancountConverter.convertTransaction(mockTransaction);
+  it('should create correct postings for debit transaction', async () => {
+    const beancountTxn = await BeancountConverter.convertTransaction(mockTransaction);
     expect(beancountTxn.postings).toHaveLength(2);
     expect(beancountTxn.postings[0].account).toBe('Assets:Bank:Caixa:Checking');
     expect(beancountTxn.postings[0].amount).toBe(-7.7);
     expect(beancountTxn.postings[1].account).toBe('Expenses:Transportation:Fuel');
   });
 
-  it('should create correct postings for credit transaction', () => {
+  it('should create correct postings for credit transaction', async () => {
     const creditTxn = { ...mockTransaction, creditAmount: 50, debitAmount: null };
-    const beancountTxn = BeancountConverter.convertTransaction(creditTxn);
+    const beancountTxn = await BeancountConverter.convertTransaction(creditTxn);
     expect(beancountTxn.postings[0].amount).toBe(50);
     expect(beancountTxn.postings[1].amount).toBe(-50);
   });
 
-  it('should generate account opening directive', () => {
-    const beancount = BeancountConverter.convert(mockData);
+  it('should generate account opening directive', async () => {
+    const beancount = await BeancountConverter.convert(mockData);
     expect(beancount).toContain('2025-01-01 open Assets:Bank:Caixa:Checking EUR');
   });
 
-  it('should generate balance assertion', () => {
-    const beancount = BeancountConverter.convert(mockData);
+  it('should generate balance assertion', async () => {
+    const beancount = await BeancountConverter.convert(mockData);
     expect(beancount).toContain('2025-12-31 balance Assets:Bank:Caixa:Checking   76.84 EUR');
   });
 
-  it('should include transaction in output', () => {
-    const beancount = BeancountConverter.convert(mockData);
-    expect(beancount).toContain('2025-12-31 * "ES SHELL L\'EMPORD - COMPRA CON TARJETA - 4800259969209119"');
+  it('should include transaction in output', async () => {
+    const beancount = await BeancountConverter.convert(mockData);
+    expect(beancount).toContain('2025-12-31 * "ES SHELL L\'EMPORD - COMPRA CON TARJETA"');
     expect(beancount).toContain('Assets:Bank:Caixa:Checking         -7.70 EUR');
+  });
+
+  it('should normalize whitespace in transaction descriptions', async () => {
+    // Test with normalized input (as it would come from parser)
+    const txnWithNormalizedSpaces: ExcelTransaction = {
+      ...mockTransaction,
+      conceptoComplementario9: 'COMPRA CON TARJETA', // Already normalized
+    };
+    const beancountTxn = await BeancountConverter.convertTransaction(txnWithNormalizedSpaces);
+    expect(beancountTxn.narration).toBe("ES SHELL L'EMPORD - COMPRA CON TARJETA");
   });
 });

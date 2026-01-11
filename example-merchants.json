@@ -1,0 +1,88 @@
+{
+  "rules": [
+    {
+      "keywords": ["shell", "fuel", "gas"],
+      "account": "Expenses:Transportation:Fuel",
+      "description": "Gas stations and fuel purchases"
+    },
+    {
+      "keywords": ["amazon", "lidl", "mercadona", "aldi", "carrefour"],
+      "account": "Expenses:Groceries",
+      "description": "Online and physical grocery stores"
+    },
+    {
+      "keywords": ["bar jr", "taverna silenus", "ca la montse"],
+      "account": "Expenses:Food:Dining",
+      "description": "Restaurants and bars"
+    },
+    {
+      "keywords": ["netflix", "spotify", "hbo", "disney"],
+      "account": "Expenses:Entertainment",
+      "description": "Streaming services and entertainment"
+    },
+    {
+      "keywords": ["github", "digitalocean", "aws", "google cloud"],
+      "account": "Expenses:Software",
+      "description": "Software development and cloud services"
+    },
+    {
+      "keywords": ["vodafone", "movistar", "orange", "telefonica"],
+      "account": "Expenses:Phone",
+      "description": "Phone and telecom services"
+    },
+    {
+      "keywords": ["renfe", "bus", "metro", "transport"],
+      "account": "Expenses:Transportation",
+      "description": "Public transportation"
+    },
+    {
+      "keywords": ["cajero", "atm", "reintegro"],
+      "account": "Expenses:Bank:Fees",
+      "description": "ATM withdrawals and bank fees"
+    },
+    {
+      "keywords": ["nomina", "salary", "sueldo"],
+      "account": "Income:Salary",
+      "description": "Salary income"
+    },
+    {
+      "keywords": ["bizum", "transfer"],
+      "account": "Assets:Bank:Caixa:Savings",
+      "description": "Internal transfers and Bizum payments"
+    },
+    {
+      "keywords": ["farmacia"],
+      "account": "Expenses:Health:Pharmacy",
+      "description": "Pharmacies and health expenses"
+    },
+    {
+      "keywords": ["cine", "cinema", "pelicula"],
+      "account": "Expenses:Entertainment",
+      "description": "Movie theaters and cinema"
+    },
+    {
+      "keywords": ["supermercado", "hipermercado"],
+      "account": "Expenses:Groceries",
+      "description": "Supermarkets and hypermarkets"
+    },
+    {
+      "keywords": ["restaurante", "bar", "cafe"],
+      "account": "Expenses:Food:Dining",
+      "description": "Restaurants, bars, and cafes"
+    }
+  ],
+  "patterns": [
+    {
+      "regex": "\\b\\w+;\\w+\\b",
+      "account": "Expenses:Personal:Transfers",
+      "description": "Personal transfers to/from individuals (Name;Surname pattern)"
+    }
+  ],
+  "fallbacks": [
+    {
+      "condition": "amount <= 2.00 AND description CONTAINS 'compra con tarjeta'",
+      "account": "Expenses:Food:Snacks",
+      "description": "Small card purchases likely vending machines"
+    }
+  ]
+}

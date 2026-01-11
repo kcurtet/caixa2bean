@@ -1,7 +1,80 @@
-import { ParsedExcelFile, ExcelTransaction, BeancountTransaction, BeancountPosting } from './types.js';
+import {
+  ParsedExcelFile,
+  ExcelTransaction,
+  BeancountTransaction,
+  BeancountPosting,
+} from './types.js';
+import fs from 'fs/promises';
+import path from 'path';
+import { TransactionConsolidator } from './consolidator.js';
+import { ConfigManager } from './config.js';
+import { ConfigurationError } from './errors.js';
+
+interface MerchantRule {
+  keywords: string[];
+  account: string;
+  description?: string;
+}
+
+interface PatternRule {
+  regex: string;
+  account: string;
+  description?: string;
+}
+
+interface FallbackRule {
+  condition: string;
+  account: string;
+  description?: string;
+}
+
+interface MerchantConfig {
+  rules: MerchantRule[];
+  patterns: PatternRule[];
+  fallbacks?: FallbackRule[];
+}
 
 export class BeancountConverter {
-  static convert(data: ParsedExcelFile, accountName: string = 'Assets:Bank:Caixa:Checking'): string {
+  private static merchantConfig: MerchantConfig | null = null;
+
+  private static async loadMerchantConfig(): Promise<MerchantConfig> {
+    if (this.merchantConfig) return this.merchantConfig;
+
+    const configPath = path.join(process.cwd(), 'merchants.json');
+    try {
+      const configData = await fs.readFile(configPath, 'utf-8');
+      this.merchantConfig = JSON.parse(configData);
+      return this.merchantConfig!;
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        // File doesn't exist, use fallback
+        console.warn('merchants.json not found, using fallback categorization');
+        this.merchantConfig = {
+          rules: [
+            { keywords: ['shell', 'fuel', 'gas'], account: 'Expenses:Transportation:Fuel' },
+            { keywords: ['amazon', 'lidl'], account: 'Expenses:Groceries' },
+            { keywords: ['bizum', 'transfer'], account: 'Assets:Bank:Caixa:Savings' },
+            { keywords: ['income', 'salary', 'haber'], account: 'Income:Salary' },
+            { keywords: ['vending', 'snack'], account: 'Expenses:Food:Snacks' },
+            { keywords: ['steam', 'game'], account: 'Expenses:Entertainment:Games' },
+          ],
+          patterns: [],
+          fallbacks: [],
+        };
+        return this.merchantConfig;
+      } else {
+        throw new ConfigurationError(
+          `Failed to load merchant configuration: ${error instanceof Error ? error.message : error}`,
+          configPath
+        );
+      }
+    }
+  }
+
+  static async convert(data: ParsedExcelFile, accountName?: string): Promise<string> {
+    const config = await ConfigManager.getConverterConfig();
+    const defaultAccount = accountName || config.defaultAccount;
+
     const lines: string[] = [];
 
     // Add header comments
@@ -13,7 +86,7 @@ export class BeancountConverter {
 
     // Open account
     const startDate = this.convertDate(data.period.start);
-    lines.push(`${startDate} open ${accountName} ${data.currency}`);
+    lines.push(`${startDate} open ${defaultAccount} ${data.currency}`);
     lines.push('');
 
     // Add opening balance as initial transaction if not zero
@@ -24,53 +97,80 @@ export class BeancountConverter {
         narration: 'Opening balance',
         postings: [
           {
-            account: accountName,
+            account: defaultAccount,
             amount: data.openingBalance,
-            currency: data.currency
+            currency: data.currency,
           },
           {
             account: 'Equity:Opening-Balances',
             amount: -data.openingBalance,
-            currency: data.currency
-          }
-        ]
+            currency: data.currency,
+          },
+        ],
       };
       lines.push(this.formatTransaction(openingTxn));
       lines.push('');
     }
 
+    // Consolidate transactions first
+    const consolidatedTransactions = await TransactionConsolidator.consolidate(data.transactions);
+
     // Convert transactions
-    for (const txn of data.transactions) {
-      const beancountTxn = this.convertTransaction(txn, accountName);
+    for (const txn of consolidatedTransactions) {
+      const beancountTxn = await this.convertTransaction(txn, defaultAccount);
       lines.push(this.formatTransaction(beancountTxn));
       lines.push('');
     }
 
+    // Add manual review comments if any
+    const manualReviews = TransactionConsolidator.getManualReviewCandidates();
+    if (manualReviews.length > 0) {
+      lines.push(';');
+      lines.push('; MANUAL REVIEW REQUIRED - Potential consolidation candidates');
+      lines.push(';');
+      for (const review of manualReviews) {
+        lines.push(`; Confidence: ${review.confidence}`);
+        lines.push(`; Reason: ${review.reasoning}`);
+        lines.push(`; Suggested: ${review.suggestedAccount}`);
+        lines.push('; Transactions:');
+        for (const txn of review.transactions) {
+          const desc = this.buildDescription(txn);
+          const amount = txn.debitAmount ? `-${txn.debitAmount}€` : `+${txn.creditAmount}€`;
+          lines.push(`;   ${txn.transactionDate} ${desc} ${amount}`);
+        }
+        lines.push(';');
+      }
+    }
+
     // Add closing balance assertion
     const endDate = this.convertDate(data.period.end);
-    lines.push(`${endDate} balance ${accountName}   ${data.closingBalance.toFixed(2)} ${data.currency}`);
+    lines.push(
+      `${endDate} balance ${defaultAccount}   ${data.closingBalance.toFixed(2)} ${data.currency}`
+    );
 
     return lines.join('\n');
   }
 
-  static convertTransaction(txn: ExcelTransaction, accountName: string = 'Assets:Bank:Caixa:Checking'): BeancountTransaction {
+  static async convertTransaction(
+    txn: ExcelTransaction,
+    accountName: string = 'Assets:Bank:Caixa:Checking'
+  ): Promise<BeancountTransaction> {
     const amount = (txn.creditAmount || 0) - (txn.debitAmount || 0);
-    const isDebit = amount < 0;
 
     // Determine expense/income account from description
-    const account = this.determineAccount(txn);
+    const account = await this.determineAccount(txn);
 
     const postings: BeancountPosting[] = [
       {
         account: accountName,
         amount: amount,
-        currency: txn.currency
+        currency: txn.currency,
       },
       {
         account: account,
         amount: -amount,
-        currency: txn.currency
-      }
+        currency: txn.currency,
+      },
     ];
 
     // Build description from available fields
@@ -80,7 +180,7 @@ export class BeancountConverter {
       date: this.convertDate(txn.transactionDate),
       flag: '*',
       narration: description,
-      postings
+      postings,
     };
   }
 
@@ -93,34 +193,59 @@ export class BeancountConverter {
     return dateStr;
   }
 
-  private static determineAccount(txn: ExcelTransaction): string {
+  private static async determineAccount(txn: ExcelTransaction): Promise<string> {
+    const config = await this.loadMerchantConfig();
     const description = [
       txn.conceptoComplementario1,
       txn.conceptoComplementario9,
-      txn.conceptoComplementario2
-    ].filter(Boolean).join(' ').toLowerCase();
+      txn.conceptoComplementario2,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
 
-    // Categorize based on keywords
-    if (description.includes('shell') || description.includes('fuel') || description.includes('gas')) {
-      return 'Expenses:Transportation:Fuel';
+    // Check keyword rules first
+    for (const rule of config.rules) {
+      if (rule.keywords.some((keyword) => description.includes(keyword.toLowerCase()))) {
+        return rule.account;
+      }
     }
-    if (description.includes('amazon') || description.includes('lidl')) {
-      return 'Expenses:Groceries';
+
+    // Check regex patterns
+    for (const pattern of config.patterns) {
+      if (new RegExp(pattern.regex, 'i').test(description)) {
+        return pattern.account;
+      }
     }
-    if (description.includes('bizum') || description.includes('transfer')) {
-      return 'Assets:Bank:Caixa:Savings'; // Internal transfer
-    }
-    if (description.includes('income') || description.includes('salary') || description.includes('haber')) {
-      return 'Income:Salary';
-    }
-    if (description.includes('vending') || description.includes('snack')) {
-      return 'Expenses:Food:Snacks';
-    }
-    if (description.includes('steam') || description.includes('game')) {
-      return 'Expenses:Entertainment:Games';
+
+    // Check fallback rules
+    if (config.fallbacks) {
+      for (const fallback of config.fallbacks) {
+        if (this.evaluateFallbackCondition(fallback.condition, txn, description)) {
+          return fallback.account;
+        }
+      }
     }
 
     return 'Expenses:Unknown';
+  }
+
+  private static evaluateFallbackCondition(
+    condition: string,
+    txn: ExcelTransaction,
+    description: string
+  ): boolean {
+    // Simple condition evaluator for fallback rules
+    const amount = txn.debitAmount || txn.creditAmount || 0;
+
+    if (condition.includes('amount <= 2.00') && amount > 2.0) return false;
+    if (
+      condition.includes("description CONTAINS 'compra con tarjeta'") &&
+      !description.includes('compra con tarjeta')
+    )
+      return false;
+
+    return true;
   }
 
   private static buildDescription(txn: ExcelTransaction): string {
@@ -128,8 +253,7 @@ export class BeancountConverter {
       txn.conceptoComplementario1,
       txn.conceptoComplementario9,
       txn.conceptoComplementario2,
-      txn.referencia2
-    ].filter(part => part && part.trim());
+    ].filter(Boolean);
 
     return parts.join(' - ').trim() || 'Transaction';
   }

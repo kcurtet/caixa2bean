@@ -1,0 +1,16 @@
+{
+  "consolidator": {
+    "enabled": true,
+    "requireRefund": true,
+    "preAuthThreshold": 2.50,
+    "purchaseMinAmount": 0.50,
+    "purchaseMaxAmount": 2.00,
+    "timeWindowHours": 24,
+    "strictMode": true,
+    "manualReviewEnabled": true
+  },
+  "converter": {
+    "defaultAccount": "Assets:Bank:Caixa:Checking",
+    "fallbackAccount": "Expenses:Unknown"
+  }
+}

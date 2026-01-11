@@ -45,7 +45,7 @@ export interface BeancountTransaction {
   postings: BeancountPosting[];
   tags?: string[];
   links?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface BeancountPosting {
@@ -55,7 +55,7 @@ export interface BeancountPosting {
   cost?: BeancountCost;
   price?: BeancountPrice;
   flag?: '!' | '*';
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface BeancountCost {
@@ -73,5 +73,5 @@ export interface BeancountPrice {
 export interface BeancountDirective {
   type: 'open' | 'close' | 'balance' | 'commodity' | 'txn';
   date: string;
-  content: any;
+  content: unknown;
 }

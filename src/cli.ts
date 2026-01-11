@@ -5,6 +5,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ExcelParser } from './parser.js';
 import { BeancountConverter } from './converter.js';
+import { PathValidator } from './validation.js';
+import { FileNotFoundError, InvalidFileFormatError, ValidationError } from './errors.js';
 
 const program = new Command();
 
@@ -18,35 +20,37 @@ program
   .description('Convert Caixa Excel statement to Beancount')
   .argument('<input>', 'Input Excel file path (.XLS)')
   .argument('<output>', 'Output Beancount file path (.beancount)')
-  .option('--account <name>', 'Beancount account name', 'Assets:Bank:Caixa:Checking')
-  .action((input: string, output: string, options: { account: string }) => {
+  .option('--account <name>', 'Beancount account name')
+  .action(async (input: string, output: string, options: { account?: string }) => {
     try {
-      // Validate input file
+      // Validate input file path
+      PathValidator.validateSafePath(input);
+      PathValidator.validateFileExtension(input, ['.xls', '.xlsx']);
+
+      // Check if input file exists
       if (!fs.existsSync(input)) {
-        console.error(`❌ Error: Input file '${input}' does not exist`);
-        process.exit(1);
+        throw new FileNotFoundError(input);
       }
 
-      const ext = path.extname(input).toLowerCase();
-      if (ext !== '.xls' && ext !== '.xlsx') {
-        console.error(`❌ Error: Input file must be .xls or .xlsx format`);
-        process.exit(1);
-      }
+      // Validate output path and directory
+      PathValidator.validateSafePath(output);
+      PathValidator.validateOutputDirectory(output);
 
       // Parse the Excel file
       console.log(`📄 Parsing ${input}...`);
       const parsedData = ExcelParser.parseFile(input);
 
       if (parsedData.transactions.length === 0) {
-        console.error(`❌ Error: No transactions found in the file`);
-        process.exit(1);
+        throw new ValidationError('No transactions found in the input file', 'transactions');
       }
 
       // Convert to Beancount
-      console.log(`🔄 Converting ${parsedData.transactions.length} transactions to Beancount format...`);
-      const beancountOutput = BeancountConverter.convert(parsedData, options.account);
+      console.log(
+        `🔄 Converting ${parsedData.transactions.length} transactions to Beancount format...`
+      );
+      const beancountOutput = await BeancountConverter.convert(parsedData, options.account);
 
-      // Validate output directory
+      // Ensure output directory exists
       const outputDir = path.dirname(output);
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
@@ -57,11 +61,25 @@ program
       console.log(`✅ Successfully converted ${parsedData.transactions.length} transactions`);
       console.log(`💾 Output written to ${output}`);
       console.log(`📊 Period: ${parsedData.period.start} to ${parsedData.period.end}`);
-      console.log(`💰 Opening balance: ${parsedData.openingBalance.toFixed(2)} ${parsedData.currency}`);
-      console.log(`💰 Closing balance: ${parsedData.closingBalance.toFixed(2)} ${parsedData.currency}`);
-
+      console.log(
+        `💰 Opening balance: ${parsedData.openingBalance.toFixed(2)} ${parsedData.currency}`
+      );
+      console.log(
+        `💰 Closing balance: ${parsedData.closingBalance.toFixed(2)} ${parsedData.currency}`
+      );
     } catch (error) {
-      console.error('❌ Error during conversion:', error instanceof Error ? error.message : error);
+      if (error instanceof ValidationError) {
+        console.error(`❌ Validation Error: ${error.message}`);
+        if (error.field) {
+          console.error(`   Field: ${error.field}`);
+        }
+      } else if (error instanceof FileNotFoundError) {
+        console.error(`❌ File Error: ${error.message}`);
+      } else if (error instanceof InvalidFileFormatError) {
+        console.error(`❌ Format Error: ${error.message}`);
+      } else {
+        console.error('❌ Unexpected Error:', error instanceof Error ? error.message : error);
+      }
       process.exit(1);
     }
   });
